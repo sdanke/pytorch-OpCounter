@@ -274,7 +274,9 @@ def profile(
         params_handler.remove()
         m._buffers.pop("total_ops")
         m._buffers.pop("total_params")
+        m._buffers.pop("total_kernel_macs")
+        m._buffers.pop("total_output_macs")
 
     if ret_layer_info:
-        return total_ops, total_params, ret_dict
-    return total_ops, total_params
+        return total_ops, total_params, total_kernel_macs, total_output_macs, ret_dict
+    return total_ops, total_params, total_kernel_macs, total_output_macs
