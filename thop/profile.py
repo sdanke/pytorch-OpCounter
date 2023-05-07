@@ -90,6 +90,9 @@ def profile_origin(model, inputs, custom_ops=None, verbose=True, report_missing=
         m.register_buffer("total_ops", torch.zeros(1, dtype=default_dtype))
         m.register_buffer("total_params", torch.zeros(1, dtype=default_dtype))
 
+        m.register_buffer('total_kernel_macs',torch.zeros(1,dtype=default_dtype))
+        m.register_buffer('total_output_macs',torch.zeros(1,dtype=default_dtype))
+
         for p in m.parameters():
             m.total_params += torch.DoubleTensor([p.numel()])
 
@@ -174,6 +177,9 @@ def profile(
         m.register_buffer("total_ops", torch.zeros(1, dtype=torch.float64))
         m.register_buffer("total_params", torch.zeros(1, dtype=torch.float64))
 
+        m.register_buffer('total_kernel_macs',torch.zeros(1,dtype=torch.float64))
+        m.register_buffer('total_output_macs',torch.zeros(1,dtype=torch.float64))
+
         # for p in m.parameters():
         #     m.total_params += torch.DoubleTensor([p.numel()])
 
@@ -212,7 +218,8 @@ def profile(
         model(*inputs)
 
     def dfs_count(module: nn.Module, prefix="\t") -> (int, int):
-        total_ops, total_params = module.total_ops.item(), 0
+        # total_ops, total_params = 0, 0
+        total_ops, total_params, total_kernel_macs, total_output_macs = module.total_ops.item(), 0, 0, 0
         ret_dict = {}
         for n, m in module.named_children():
             # if not hasattr(m, "total_ops") and not hasattr(m, "total_params"):  # and len(list(m.children())) > 0:
@@ -220,19 +227,45 @@ def profile(
             # else:
             #     m_ops, m_params = m.total_ops, m.total_params
             next_dict = {}
-            if m in handler_collection and not isinstance(
-                m, (nn.Sequential, nn.ModuleList)
-            ):
-                m_ops, m_params = m.total_ops.item(), m.total_params.item()
+            if m in handler_collection and not isinstance(m, (nn.Sequential, nn.ModuleList)):
+                # m_ops, m_params = m.total_ops.item(), m.total_params.item()
+                m_ops, m_params, m_kernel_macs, m_output_macs = m.total_ops.item(), m.total_params.item(), m.total_kernel_macs.item(), m.total_output_macs.item()
             else:
-                m_ops, m_params, next_dict = dfs_count(m, prefix=prefix + "\t")
-            ret_dict[n] = (m_ops, m_params, next_dict)
+                # m_ops, m_params = dfs_count(m, prefix=prefix + "\t")
+                m_ops, m_params, m_kernel_macs, m_output_macs, next_dict = dfs_count(m, prefix=prefix + "\t")
+            ret_dict[n] = (m_ops, m_params, m_kernel_macs, m_output_macs, next_dict)
             total_ops += m_ops
             total_params += m_params
-        # print(prefix, module._get_name(), (total_ops, total_params))
-        return total_ops, total_params, ret_dict
+            total_kernel_macs += m_kernel_macs
+            total_output_macs += m_output_macs
+ 
+        #  print(prefix, module._get_name(), (total_ops.item(), total_params.item()))
+        # return total_ops, total_params
+        return total_ops, total_params, total_kernel_macs, total_output_macs, ret_dict
 
-    total_ops, total_params, ret_dict = dfs_count(model)
+    # def dfs_count(module: nn.Module, prefix="\t") -> (int, int):
+    #     total_ops, total_params = module.total_ops.item(), 0
+    #     ret_dict = {}
+    #     for n, m in module.named_children():
+    #         # if not hasattr(m, "total_ops") and not hasattr(m, "total_params"):  # and len(list(m.children())) > 0:
+    #         #     m_ops, m_params = dfs_count(m, prefix=prefix + "\t")
+    #         # else:
+    #         #     m_ops, m_params = m.total_ops, m.total_params
+    #         next_dict = {}
+    #         if m in handler_collection and not isinstance(
+    #             m, (nn.Sequential, nn.ModuleList)
+    #         ):
+    #             m_ops, m_params = m.total_ops.item(), m.total_params.item()
+    #         else:
+    #             m_ops, m_params, next_dict = dfs_count(m, prefix=prefix + "\t")
+    #         ret_dict[n] = (m_ops, m_params, next_dict)
+    #         total_ops += m_ops
+    #         total_params += m_params
+    #     # print(prefix, module._get_name(), (total_ops, total_params))
+    #     return total_ops, total_params, ret_dict
+
+    # total_ops, total_params, ret_dict = dfs_count(model)
+    total_ops, total_params, total_kernel_macs, total_output_macs, ret_dict = dfs_count(model)
 
     # reset model to original status
     model.train(prev_training_status)

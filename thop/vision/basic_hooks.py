@@ -40,6 +40,12 @@ def count_convNd(m: _ConvNd, x, y: torch.Tensor):
     #     m.in_channels,
     #     m.groups,
     # )
+    total_kernel_macs = kernel_ops * m.in_channels * m.out_channels  # K^2 * C_in * C_out
+    m.total_kernel_macs += torch.DoubleTensor([int(total_kernel_macs)])
+ 
+ 
+    total_output_macs = y.nelement() # N x Cout x H x W
+    m.total_output_macs += torch.DoubleTensor([int(total_output_macs)])
 
 
 def count_convNd_ver2(m: _ConvNd, x, y: torch.Tensor):
@@ -68,6 +74,9 @@ def count_normalization(m: nn.modules.batchnorm._BatchNorm, x, y):
         flops *= 2
     m.total_ops += flops
 
+    total_output_macs = y.nelement()
+    m.total_output_macs += torch.DoubleTensor([int(total_output_macs)])
+
 
 # def count_layer_norm(m, x, y):
 #     x = x[0]
@@ -94,6 +103,9 @@ def count_relu(m, x, y):
 
     m.total_ops += calculate_relu_flops(list(x.shape))
 
+    total_output_macs = y.nelement()
+    m.total_output_macs += torch.DoubleTensor([int(total_output_macs)])
+
 
 def count_softmax(m, x, y):
     x = x[0]
@@ -102,6 +114,9 @@ def count_softmax(m, x, y):
 
     m.total_ops += calculate_softmax(batch_size, nfeatures)
 
+    total_output_macs = y.nelement()
+    m.total_output_macs += torch.DoubleTensor([int(total_output_macs)])
+
 
 def count_avgpool(m, x, y):
     # total_add = torch.prod(torch.Tensor([m.kernel_size]))
@@ -109,6 +124,9 @@ def count_avgpool(m, x, y):
     # kernel_ops = total_add + total_div
     num_elements = y.numel()
     m.total_ops += calculate_avgpool(num_elements)
+
+    total_output_macs = y.nelement()
+    m.total_output_macs += torch.DoubleTensor([int(total_output_macs)])
 
 
 def count_adap_avgpool(m, x, y):
@@ -119,6 +137,9 @@ def count_adap_avgpool(m, x, y):
     total_add = torch.prod(kernel)
     num_elements = y.numel()
     m.total_ops += calculate_adaptive_avg(total_add, num_elements)
+
+    total_output_macs = y.nelement()
+    m.total_output_macs += torch.DoubleTensor([int(total_output_macs)])
 
 
 # TODO: verify the accuracy
@@ -134,6 +155,9 @@ def count_upsample(m, x, y):
     else:
         x = x[0]
         m.total_ops += calculate_upsample(m.mode, y.nelement())
+    
+    total_output_macs = y.nelement()
+    m.total_output_macs += torch.DoubleTensor([int(total_output_macs)])
 
 
 # nn.Linear
@@ -145,3 +169,9 @@ def count_linear(m, x, y):
     num_elements = y.numel()
 
     m.total_ops += calculate_linear(total_mul, num_elements)
+
+    total_output_macs = y.nelement()
+    m.total_output_macs += torch.DoubleTensor([int(total_output_macs)])
+
+    total_kernel_macs = m.in_features * num_elements
+    m.total_kernel_macs += torch.DoubleTensor([int(total_kernel_macs)])
